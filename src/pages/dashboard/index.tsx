@@ -7,9 +7,11 @@ import {
   CardDescription,
   CardContent,
 } from "~/components/ui/card";
+import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { Separator } from "~/components/ui/separator";
 import { UserNav } from "~/components/user-nav";
+import { cn } from "~/utils";
 import { api } from "~/utils/api";
 
 export default function Dashboard() {
@@ -19,6 +21,36 @@ export default function Dashboard() {
   const create = api.todo.create.useMutation({
     onSuccess: () => {
       void utils.todo.getAll.invalidate();
+    },
+  });
+  const update = api.todo.update.useMutation({
+    onSettled: () => {
+      void utils.todo.getAll.invalidate();
+    },
+    onMutate: async ({ id, isDone }) => {
+      await utils.todo.getAll.cancel();
+
+      const prevData = utils.todo.getAll.getData();
+
+      utils.todo.getAll.setData(undefined, (old) => {
+        if (!old) return old;
+        return old.map((todo) => {
+          if (todo.id === id) {
+            return {
+              ...todo,
+              isDone,
+            };
+          }
+          return todo;
+        });
+      });
+
+      return { prevData };
+    },
+    onError: (err, variables, context) => {
+      if (context?.prevData) {
+        utils.todo.getAll.setData(undefined, context.prevData);
+      }
     },
   });
 
@@ -62,21 +94,33 @@ export default function Dashboard() {
             <div className="space-y-4">
               <h4 className="text-sm font-medium">Your Todos</h4>
               <div className="grid gap-6">
-                {getAll.data?.map((todo) => (
-                  <div
-                    className="flex items-center justify-between space-x-4"
-                    key={todo.id}
-                  >
-                    <div>
-                      <p className="text-sm font-medium leading-none">
-                        {todo.title}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {todo.createdAt.toLocaleString("it-IT")}
-                      </p>
+                {getAll.data
+                  ?.sort((a, b) => Number(a.isDone) - Number(b.isDone))
+                  .map((todo) => (
+                    <div className="flex items-center space-x-4" key={todo.id}>
+                      <Checkbox
+                        checked={todo.isDone}
+                        onCheckedChange={(checked) => {
+                          update.mutate({
+                            id: todo.id,
+                            isDone: Boolean(checked),
+                          });
+                        }}
+                      />
+                      <div>
+                        <p
+                          className={cn("text-sm font-medium leading-none", {
+                            "line-through": todo.isDone,
+                          })}
+                        >
+                          {todo.title}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {todo.createdAt.toLocaleString("it-IT")}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           </CardContent>

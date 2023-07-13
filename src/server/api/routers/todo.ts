@@ -20,4 +20,23 @@ export const todoRouter = createTRPCRouter({
         },
       });
     }),
+
+  update: protectedProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        isDone: z.boolean(),
+      })
+    )
+    .mutation(({ ctx, input }) => {
+      return ctx.prisma.todo.updateMany({
+        where: {
+          id: input.id,
+          userId: ctx.session.user.id,
+        },
+        data: {
+          isDone: input.isDone,
+        },
+      });
+    }),
 });
